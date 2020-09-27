@@ -1,14 +1,14 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 
-const UsersService = require('../data/userService');
+const r = require('../config/rethink');
+
 const jwtGenerator = require('../utils/jwtGenerator');
 const validInfo = require('../middleware/validInfo');
 const authorization = require('../middleware/authorization');
 
 //register Route
 router.post('/register', validInfo, async (req, res) => {
-	const db = req.app.get('db');
 	try {
 		// destructure req.body(username,email,password)
 
@@ -26,16 +26,16 @@ router.post('/register', validInfo, async (req, res) => {
 			},
 		];
 
-		UsersService.getByEmail(db, email).then(responseEmail => {
+		r.findByEmail('users', email).then(resEmail => {
 			// check if user exists
-			if (responseEmail) {
-				return res.status(401).send('user Exists');
+			if (resEmail.length !== 0) {
+				return res.status(401).send('User Exists');
 			}
 
 			//Enter new User inside DB
-			UsersService.insertUser(db, newUser)
+			r.insertUser('users', newUser)
 				.then(responseInsert => {
-					const token = jwtGenerator(responseInsert.id);
+					const token = jwtGenerator(responseInsert.generated_keys);
 					res.json({ token });
 				})
 				.catch(errorInsert => {
@@ -60,23 +60,21 @@ router.post('/login', validInfo, async (req, res) => {
 		const { email, password } = req.body;
 
 		//Getting Email
-		UsersService.getByEmail(db, email)
-			.then(async responseGetEmail => {
-				//Checking if Email Exists
-				if (!responseGetEmail) {
+
+		r.findByEmail('users', email)
+			.then(async resEmail => {
+				if (resEmail.length === 0) {
 					return res.status(401).send('Password or Email incorrect');
 				}
-				//Validating Password
 				const validPassword = await bcrypt.compare(
 					password,
-					responseGetEmail.password
+					resEmail[0].password
 				);
 				//Checking if ValidPassword is True
 				if (!validPassword) {
 					return res.status(401).send('Password or Email incorrect');
 				}
-
-				const token = jwtGenerator(responseGetEmail.id);
+				const token = jwtGenerator(resEmail[0].id);
 				res.json({ token });
 			})
 			.catch(errorGetEmail => {

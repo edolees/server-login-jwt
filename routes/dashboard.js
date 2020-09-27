@@ -1,15 +1,14 @@
 const router = require('express').Router();
+const r = require('../config/rethink');
+
 const authorization = require('../middleware/authorization');
-const UsersService = require('../data/userService');
 
 router.get('/', authorization, async (req, res) => {
-	const db = req.app.get('db');
-
 	try {
 		//req user has the payload
-		UsersService.getById(db, req.user)
-			.then(responseGetId => {
-				res.json(responseGetId);
+		r.findById('users', req.user)
+			.then(resId => {
+				res.json(resId);
 			})
 			.catch(errorGetId => console.log(errorGetId));
 	} catch (error) {
